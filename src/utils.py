@@ -80,7 +80,5 @@ if __name__ == '__main__':
     tokenized_sents = tokenize(sents)
     # embeddings, word_id_map = load_glove_embedding_map(torch_flag=True)
 
-
-
-
+    word_id_map = get_word_id_map(enrich_vocab=True)
     sents_as_ids = convert_word_to_id(tokenized_sents,word_id_map)

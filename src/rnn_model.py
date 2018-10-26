@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class rnn_model(nn.Module):
-    def __init__(self, device, word_embedding=None, n_classes=2, vocab_size=-1):
+    def __init__(self, device, word_embedding=None, n_classes=2, vocab_size=None, use_pretrained_wv=False):
         super(rnn_model, self).__init__()
         self.device = device
         self.n_classes = n_classes
 
-        if word_embedding:
-            self.embedding = word_embedding
-            self.input_size= word_embedding.Size()[1]
+        if use_pretrained_wv:
+            self.embedding = self._create_emb_layer(word_embedding)
+            self.input_size= word_embedding.shape[1]
         else:
             self.input_size=50
             self.embedding = nn.Embedding(vocab_size,self.input_size)
@@ -18,6 +18,16 @@ class rnn_model(nn.Module):
         self.rnn = nn.GRU(input_size=self.input_size, hidden_size=self.hidden_size)
         self.h2o = nn.Linear(self.hidden_size,self.n_classes)
         self.logsoftmax = nn.LogSoftmax()
+
+
+    def _create_emb_layer(self, weights_matrix, non_trainable=False):
+        num_embeddings, embedding_dim = weights_matrix.size()
+        emb_layer = nn.Embedding(num_embeddings, embedding_dim)
+        emb_layer.load_state_dict({'weight': weights_matrix})
+        if non_trainable:
+            emb_layer.weight.requires_grad = False
+
+        return emb_layer
 
     def forward(self, input,hidden):
         embedded = self.embedding(input).view(-1, 1, self.hidden_size) #one token at a time (may be changed to one seq)
