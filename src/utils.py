@@ -1,6 +1,7 @@
 import os,json,nltk
 import numpy as np
 import torch
+import pandas as pd
 
 def load_imdb_dataset():
     fname = '../data/sentiment labelled sentences/imdb_labelled.txt'
@@ -72,11 +73,27 @@ def convert_word_to_id(tokenized_sents,word_id_map):
     return sents_as_ids
 
 
+def load_rotten_tomatoes_dataset(fname='../data/rotten_tomatoes_movie_rev/train.tsv'):
+    df = pd.read_csv(fname,delimiter='\t')
+    print(f'loaded df of shape: {df.shape}')
+    gdf = df.groupby('SentenceId')
+    sents = []
+    labels = []
+    for gid, g in gdf:
+        s = g.Phrase.iloc[0]
+        l = g.Sentiment.iloc[0]
+        if not s:
+            continue
+        sents.append(s)
+        labels.append(l)
+    print(f'loaded {len(sents)} sentences and {len(labels)} labels from data frame')
+    return sents, labels
 
 
 
 if __name__ == '__main__':
-    sents, labels = load_imdb_dataset()
+    # sents, labels = load_imdb_dataset()
+    sents, labels = load_rotten_tomatoes_dataset()
     tokenized_sents = tokenize(sents)
     # embeddings, word_id_map = load_glove_embedding_map(torch_flag=True)
 
