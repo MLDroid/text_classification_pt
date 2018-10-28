@@ -14,11 +14,12 @@ def load_imdb_dataset():
         labels.append(int(l))
 
     print (f'loaded {len(sents)} and {len(labels)} from {fname}')
-    return sents, labels
+    n_classes = len(set(labels))
+    return sents, labels, n_classes
 
 def tokenize(sents):
     tokenized = []
-    for s in sents:
+    for i,s in enumerate(sents):
         s = s.lower()
         tokens = nltk.word_tokenize(s)
         tokenized.append(tokens)
@@ -82,19 +83,39 @@ def load_rotten_tomatoes_dataset(fname='../data/rotten_tomatoes_movie_rev/train.
     for gid, g in gdf:
         s = g.Phrase.iloc[0]
         l = g.Sentiment.iloc[0]
-        if not s:
-            continue
         sents.append(s)
         labels.append(l)
     print(f'loaded {len(sents)} sentences and {len(labels)} labels from data frame')
-    return sents, labels
+    n_classes = len(set(labels))
+    return sents, labels, n_classes
+
+def pad_token_ids(tokens,pad_token_id, max_len=80):
+    cur_len = len(tokens)
+    if cur_len > max_len:
+        tokens = tokens[:max_len]
+    else:
+        tokens = tokens + [pad_token_id] * (max_len - cur_len)
+    return tokens
 
 
+def print_stats_dataset(sents):
+    lens = np.array([len(s) for s in sents])
+    min_l, max_l, mean_l, std_l = lens.min(), lens.max(), lens.mean(), lens.std()
+    print(f'stats: min sent length: {min_l}, max sent length: {max_l}, mean sent length: {mean_l}, std: {std_l}')
+
+def remove_empty_tokenizedsents(tokenized_sents, labels):
+    inds_to_rem = [i for i, s in enumerate(tokenized_sents) if len(s) == 0]
+    for i in inds_to_rem:
+        del tokenized_sents[i]
+        del labels[i]
+    return tokenized_sents, labels
 
 if __name__ == '__main__':
     # sents, labels = load_imdb_dataset()
     sents, labels = load_rotten_tomatoes_dataset()
     tokenized_sents = tokenize(sents)
+    remove_empty_tokenizedsents(tokenized_sents, labels)
+    print_stats_dataset(tokenized_sents)
     # embeddings, word_id_map = load_glove_embedding_map(torch_flag=True)
 
     word_id_map = get_word_id_map(enrich_vocab=True)

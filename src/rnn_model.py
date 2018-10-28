@@ -9,13 +9,13 @@ class rnn_model(nn.Module):
         self.n_classes = n_classes
 
         if use_pretrained_wv:
-            self.embedding = self._create_emb_layer(word_embedding)
+            self.embedding = self._create_emb_layer(word_embedding, non_trainable=True)
             self.input_size= word_embedding.shape[1]
         else:
             self.input_size=50
             self.embedding = nn.Embedding(vocab_size,self.input_size)
         self.hidden_size = self.input_size
-        self.rnn = nn.GRU(input_size=self.input_size, hidden_size=self.hidden_size)
+        self.rnn = nn.GRU(input_size=self.input_size, hidden_size=self.hidden_size,dropout=0.4)
         self.h2o = nn.Linear(self.hidden_size,self.n_classes)
         self.logsoftmax = nn.LogSoftmax()
         self.dp20 = nn.Dropout(p=.2)
@@ -29,7 +29,7 @@ class rnn_model(nn.Module):
         output = embedded
         output, hidden = self.rnn(output, hidden)
         output = output[-1] #take the last output state
-        if not is_train:
+        if is_train:
             output = self.dp20(output)
         output = self.h2o(output)
         logprobs = self.logsoftmax(output)
@@ -46,3 +46,6 @@ class rnn_model(nn.Module):
             emb_layer.weight.requires_grad = False
 
         return emb_layer
+
+if __name__ == '__main__':
+    pass
