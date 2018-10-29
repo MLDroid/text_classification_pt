@@ -22,6 +22,7 @@ class rnn_model(nn.Module):
         else:
             self.h2o = nn.Linear(self.hidden_size,self.n_classes)
         self.logsoftmax = nn.LogSoftmax()
+        self.softmax = nn.Softmax(dim=1)
         self.dp20 = nn.Dropout(p=.2)
         self.dp40 = nn.Dropout(p=.4)
 
@@ -32,28 +33,24 @@ class rnn_model(nn.Module):
         if is_batch:
             batch_size = input.shape[0]
             embedded = self.embedding(input).view(-1, batch_size, self.hidden_size) #one token at a time (may be changed to one seq)
-            output = embedded
-            output, hidden = self.rnn(output, hidden)
-            if self.bi:
-                hidden = hidden.view(-1,1,2*self.hidden_size)
-            output = hidden
-            if is_train:
-                output = self.dp20(output)
-            output = self.h2o(output).squeeze(1)
-            logprobs = self.logsoftmax(output)
-            return logprobs
+
         else:
             embedded = self.embedding(input).view(-1, 1,self.hidden_size)  # one token at a time (may be changed to one seq)
-            output = embedded
-            output, hidden = self.rnn(output, hidden)
-            if self.bi:
-                hidden = hidden.view(-1,1,2*self.hidden_size)
-            output = hidden
-            if is_train:
-                output = self.dp20(output)
+
+        output = embedded
+        output, hidden = self.rnn(output, hidden)
+        if self.bi:
+            hidden = hidden.view(-1,1,2*self.hidden_size)
+        output = hidden
+        if is_train:
+            output = self.dp20(output)
+        if is_batch:
+            output = self.h2o(output).squeeze(0)
+        else:
             output = self.h2o(output).squeeze(1)
-            logprobs = self.logsoftmax(output)
-            return logprobs
+        # logprobs = self.logsoftmax(output)
+        logprobs = self.softmax(output)
+        return logprobs
 
 
     def initHidden(self,batch_size=1,bi=False):

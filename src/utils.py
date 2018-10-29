@@ -114,7 +114,7 @@ if __name__ == '__main__':
     # sents, labels = load_imdb_dataset()
     sents, labels = load_rotten_tomatoes_dataset()
     tokenized_sents = tokenize(sents)
-    remove_empty_tokenizedsents(tokenized_sents, labels)
+    tokenized_sents, labels = remove_empty_tokenizedsents(tokenized_sents, labels)
     print_stats_dataset(tokenized_sents)
     # embeddings, word_id_map = load_glove_embedding_map(torch_flag=True)
 

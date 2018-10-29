@@ -3,12 +3,13 @@ import utils,rnn_model_batch
 from time import time
 import torch.nn as nn
 import torch.optim as optim
-from random import shuffle, randint
+from torch.utils.data import DataLoader
+from random import randint
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score,f1_score
 from collections import Counter
 import data_loader
-from torch.utils.data import DataLoader
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 bi = True
@@ -49,7 +50,8 @@ def train(train_loader, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_pret
                                 vocab_size=vocab_size, use_pretrained_wv=use_pretrained_wv, bi=bi)
     model = model.cuda()
     print(f' created RNN (GRU) model: {model}')
-    criterion = nn.NLLLoss()
+    # criterion = nn.NLLLoss()
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=lr)
     model.train()
     for e in range(1,n_epochs+1):
@@ -79,6 +81,7 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
     # sents, labels, n_classes = utils.load_rotten_tomatoes_dataset()
     print(f'distribution of classes: {Counter(labels)}')
     tokenized_sents = utils.tokenize(sents)
+    tokenized_sents, labels = utils.remove_empty_tokenizedsents(tokenized_sents, labels)
     if load_embedding:
         embeddings, word_id_map = utils.load_glove_embedding_map(torch_flag=True)
         print (f'loaded pretrained embedding of shape: ', embeddings.shape)
@@ -96,8 +99,8 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
     f_scores = []
     for run in range(1, max_runs+1):
         train_sent_ids, test_sent_ids, y_train, y_test = train_test_split(sents_as_ids, labels, test_size = 0.3, random_state = randint(1,100))
-        imdb_dataset = data_loader.load_dataset(train_sent_ids, y_train, device)
-        train_loader = DataLoader(imdb_dataset,batch_size=batch_size, shuffle=True,num_workers=0)
+        dataset = data_loader.load_dataset(train_sent_ids, y_train, device)
+        train_loader = DataLoader(dataset,batch_size=batch_size, shuffle=True,num_workers=0)
         print (f'sample lengths - train: {len(y_train)} and test: {len(y_test)}')
 
         model = train(train_loader, embeddings, n_epochs=20, vocab_size=len(word_id_map),
@@ -113,4 +116,4 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
 
 
 if __name__ == '__main__':
-    main(load_embedding=True,max_runs=5,batch_size=1)
+    main(load_embedding=False,max_runs=5,batch_size=1)
