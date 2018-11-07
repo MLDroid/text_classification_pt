@@ -11,7 +11,7 @@ from pprint import pprint
 import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-bi = False
+bi = True
 
 
 def test_basline(test_sent_ids, y_test, src_word_id_map, tgt_word_id_map):
@@ -53,11 +53,12 @@ def test_batch(model, samples, labels, pad_id=0, batch_size=1):
             batch_lens, sents, labels = zip(*batch_lens_samples_labels)
             batch_lens = list(batch_lens)
             max_sent_len = batch_lens[0]
+            modes = torch.tensor(utils.get_modes(sents), dtype=torch.long, device=device)
             sents = [utils.pad_token_ids(s, pad_id, max_len=max_sent_len) for s in sents]
             sents = torch.tensor(sents, device=device, dtype=torch.long)
             labels = torch.tensor(labels, device=device, dtype=torch.long)
             hidden = model.initHidden(batch_size=len(labels), bi=bi)
-            logprobs = model(sents, batch_lens, hidden)
+            logprobs = model(sents, batch_lens, hidden,modes=modes)
 
             topv, topi = logprobs.topk(1)
             topi = topi.squeeze().detach()  # detach from history as input
@@ -74,7 +75,8 @@ def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_p
     lens_samples_labels = list(zip(lens,samples,labels))
     n_classes = len(set(labels))
     model = rnn_model_batch.rnn_model(device, word_embedding=embeddings, n_classes=n_classes,
-                                vocab_size=vocab_size, use_pretrained_wv=use_pretrained_wv, bi=bi)
+                                vocab_size=vocab_size, use_pretrained_wv=use_pretrained_wv, bi=bi,
+                                mode_concat=True,n_layers=2)
     model = model.cuda()
     print(f' created RNN (GRU) model: {model}')
     if use_wt_loss:
@@ -103,12 +105,13 @@ def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_p
             batch_lens, sents, labels = zip(*batch_lens_samples_labels)
             batch_lens = list(batch_lens)
             max_sent_len = batch_lens[0]
+            modes = torch.tensor(utils.get_modes(sents), dtype=torch.long, device=device)
             sents = [utils.pad_token_ids(s,pad_id, max_len=max_sent_len) for s in sents]
             sents = torch.tensor(sents, device=device, dtype=torch.long)
             labels = torch.tensor(labels, device=device, dtype=torch.long)
             optimizer.zero_grad()
             hidden = model.initHidden(batch_size=len(labels), bi=bi)
-            logprobs = model(sents, batch_lens, hidden)
+            logprobs = model(sents, batch_lens, hidden, modes=modes)
             loss = criterion(logprobs, labels)
             losses.append(loss.item())
             loss.backward()
@@ -133,9 +136,9 @@ def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_p
 
 def main(load_embedding=False, max_runs=5,batch_size=1):
     all_pairs_fname = '/home/ubuntu/trans_seq/src/seq_classify/seq_tagger/all_pairs_for_tagger.json'
-    all_pairs = utils.load_pine_labs_dataset(all_pairs_fname)[:10000]
+    all_pairs = utils.load_pine_labs_dataset(all_pairs_fname)[:5000]
     all_pairs = utils.remove_short_seqs(all_pairs,threshold=5)
-    all_pairs, removed_stats = utils.remove_low_freq_labels_pairs(all_pairs, threshold=100)
+    all_pairs, removed_stats = utils.remove_low_freq_labels_pairs(all_pairs, threshold=200)
     pprint(removed_stats)
 
     src_word_id_map, tgt_word_id_map = utils.get_word_id_maps(all_pairs)
@@ -165,7 +168,7 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
         #################################### get subsequences for improving training ###################################
         print(f'len of train sents and labels BEFORE extracting subseqs: ',len(train_sent_ids),len(y_train))
         train_sent_ids,y_train = utils.get_subseqs(train_sent_ids, y_train, y_test, src_word_id_map,
-                                                   tgt_word_id_map,p_select=1.0)
+                                                   tgt_word_id_map,p_select=0.8)
         print(f'len of train sents and labels AFTER extracting subseqs: ', len(train_sent_ids), len(y_train))
 
         ################################# actual model ################################################################
@@ -175,7 +178,7 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
                      'batch_size':1}
         model = train(train_sent_ids, y_train, embeddings, n_epochs=1000,
                       vocab_size=len(src_word_id_map),
-                      lr=0.008, use_pretrained_wv=load_embedding,
+                      lr=0.005, use_pretrained_wv=load_embedding,
                       pad_id=src_word_id_map['PAD'],batch_size=batch_size,
                       test_dict=test_dict,test_every=1,
                       use_wt_loss=True)
@@ -189,4 +192,4 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
 
 
 if __name__ == '__main__':
-    main(load_embedding=True,max_runs=5,batch_size=10000)
+    main(load_embedding=True,max_runs=5,batch_size=1000)

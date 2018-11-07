@@ -178,5 +178,10 @@ def get_subseqs(train_sent_ids, y_train, y_test, src_word_id_map, tgt_word_id_ma
     y_train.extend(ext_y_train)
     return train_sent_ids, y_train
 
+def get_modes(sents):
+    modes = [max(set(s), key=s.count) for s in sents]
+    return modes
+
+
 if __name__ == '__main__':
     pass
