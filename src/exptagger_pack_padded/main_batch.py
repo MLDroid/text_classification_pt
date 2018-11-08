@@ -40,7 +40,7 @@ def test_basline(test_sent_ids, y_test, src_word_id_map, tgt_word_id_map):
 
     return results_dict
 
-def test_batch(model, samples, labels, pad_id=0, batch_size=1):
+def test_batch(model, samples, labels, pad_id=0, batch_size=1,mode_concat=True):
     y_pred = []
     y_test = labels
     lens = [len(s) for s in samples]
@@ -53,12 +53,18 @@ def test_batch(model, samples, labels, pad_id=0, batch_size=1):
             batch_lens, sents, labels = zip(*batch_lens_samples_labels)
             batch_lens = list(batch_lens)
             max_sent_len = batch_lens[0]
-            modes = torch.tensor(utils.get_modes(sents), dtype=torch.long, device=device)
+            if mode_concat:
+                del batch_lens
+                modes = utils.get_modes(sents)
+                sents = [s+[modes[i]] for i,s in enumerate(sents)]
+                batch_lens = [len(s) for s in sents]
+                max_sent_len = batch_lens[0]
+
             sents = [utils.pad_token_ids(s, pad_id, max_len=max_sent_len) for s in sents]
             sents = torch.tensor(sents, device=device, dtype=torch.long)
             labels = torch.tensor(labels, device=device, dtype=torch.long)
             hidden = model.initHidden(batch_size=len(labels), bi=bi)
-            logprobs = model(sents, batch_lens, hidden,modes=modes)
+            logprobs = model(sents, batch_lens, hidden,batch_first=True)
 
             topv, topi = logprobs.topk(1)
             topi = topi.squeeze().detach()  # detach from history as input
@@ -70,13 +76,13 @@ def test_batch(model, samples, labels, pad_id=0, batch_size=1):
 
 
 def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_pretrained_wv=False,
-          pad_id=0, batch_size=1,test_dict=None,test_every=0,use_wt_loss=True):
+          pad_id=0, batch_size=1,test_dict=None,test_every=0,use_wt_loss=True,mode_concat=True):
     lens = [len(s) for s in samples]
     lens_samples_labels = list(zip(lens,samples,labels))
     n_classes = len(set(labels))
     model = rnn_model_batch.rnn_model(device, word_embedding=embeddings, n_classes=n_classes,
                                 vocab_size=vocab_size, use_pretrained_wv=use_pretrained_wv, bi=bi,
-                                mode_concat=True,n_layers=2)
+                                n_layers=2)
     model = model.cuda()
     print(f' created RNN (GRU) model: {model}')
     if use_wt_loss:
@@ -88,7 +94,7 @@ def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_p
         wts = [1./label_freq_counts[label] for label in sorted(label_probs.keys())]
         wts = torch.tensor(wts, device=device, dtype=torch.float)
         print('weights for loss function: ',wts)
-        criterion = nn.CrossEntropyLoss(weight=wts,size_average=False)
+        criterion = nn.CrossEntropyLoss(weight=wts,reduction='sum')
     else:
         criterion = nn.CrossEntropyLoss()
     # optimizer = optim.SGD(model.parameters(), lr=lr)
@@ -105,13 +111,20 @@ def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_p
             batch_lens, sents, labels = zip(*batch_lens_samples_labels)
             batch_lens = list(batch_lens)
             max_sent_len = batch_lens[0]
-            modes = torch.tensor(utils.get_modes(sents), dtype=torch.long, device=device)
+            if mode_concat:
+                del batch_lens
+                modes = utils.get_modes(sents)
+                sents = [s+[modes[i]] for i,s in enumerate(sents)]
+                batch_lens = [len(s) for s in sents]
+                max_sent_len = batch_lens[0]
+
+
             sents = [utils.pad_token_ids(s,pad_id, max_len=max_sent_len) for s in sents]
             sents = torch.tensor(sents, device=device, dtype=torch.long)
             labels = torch.tensor(labels, device=device, dtype=torch.long)
             optimizer.zero_grad()
             hidden = model.initHidden(batch_size=len(labels), bi=bi)
-            logprobs = model(sents, batch_lens, hidden, modes=modes)
+            logprobs = model(sents, batch_lens, hidden,batch_first=True)
             loss = criterion(logprobs, labels)
             losses.append(loss.item())
             loss.backward()
@@ -136,7 +149,7 @@ def train(samples, labels, embeddings, n_epochs=2, vocab_size=-1, lr=0.01, use_p
 
 def main(load_embedding=False, max_runs=5,batch_size=1):
     all_pairs_fname = '/home/ubuntu/trans_seq/src/seq_classify/seq_tagger/all_pairs_for_tagger.json'
-    all_pairs = utils.load_pine_labs_dataset(all_pairs_fname)[:5000]
+    all_pairs = utils.load_pine_labs_dataset(all_pairs_fname)[:10000]
     all_pairs = utils.remove_short_seqs(all_pairs,threshold=5)
     all_pairs, removed_stats = utils.remove_low_freq_labels_pairs(all_pairs, threshold=200)
     pprint(removed_stats)
@@ -192,4 +205,4 @@ def main(load_embedding=False, max_runs=5,batch_size=1):
 
 
 if __name__ == '__main__':
-    main(load_embedding=True,max_runs=5,batch_size=1000)
+    main(load_embedding=True,max_runs=5,batch_size=2000)
